@@ -32,7 +32,7 @@ God Bless You`,
     "Semoga kita selalu bersama 💕"
   ],
   finalTitle: "Love You 💖",
-  finalText: "Terima kasih sudah menjadi rumahku. Semoga semua doamu terkabul, ya."
+  finalText: "Terima kasih"
 };
 /* =========================== */
 const $ = s => document.querySelector(s);
