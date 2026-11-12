@@ -42,9 +42,11 @@ $("#sign").textContent = CONFIG.from;
 
 const cv = $("#sky"), cx = cv.getContext("2d");
 let stars = [], shoot = null;
+let lastW = 0;
 function resize() {
+  if (innerWidth === lastW) return; lastW = innerWidth;
   cv.width = innerWidth; cv.height = innerHeight;
-  stars = Array.from({length: Math.round(innerWidth * innerHeight / 5000)}, () => ({
+  stars = Array.from({length: Math.min(140, Math.round(innerWidth * innerHeight / 9000))}, () => ({
     x: Math.random() * cv.width, y: Math.random() * cv.height,
     r: Math.random() * 1.6 + .3, p: Math.random() * 6.28, s: Math.random() * .02 + .005
   }));
@@ -55,8 +57,9 @@ addEventListener("resize", resize); resize();
   stars.forEach(s => {
     s.p += s.s;
     cx.globalAlpha = .4 + .6 * Math.abs(Math.sin(s.p));
-    cx.fillStyle = "#fff8e0"; cx.shadowColor = "#ffd98a"; cx.shadowBlur = 8;
+    cx.fillStyle = "#fff8e0";
     cx.beginPath(); cx.arc(s.x, s.y, s.r, 0, 6.28); cx.fill();
+    if (s.r > 1.2) { cx.globalAlpha *= .22; cx.beginPath(); cx.arc(s.x, s.y, s.r * 3, 0, 6.28); cx.fill(); }
   });
   if (!shoot && Math.random() < .004) shoot = {x: Math.random() * cv.width, y: 0};
   if (shoot) {
@@ -95,7 +98,7 @@ $("#enter").onclick = unlock;
 $("#pw").addEventListener("keydown", e => e.key === "Enter" && unlock());
 
 $("#gallery").innerHTML = CONFIG.photos.map(([src, cap], i) =>
-  `<div class="col-6 col-md-4" data-aos="fade-up" data-aos-delay="${(i % 3) * 100}"><div class="ph" data-i="${i}"><img src="${src}" alt="${cap}" loading="lazy" onerror="this.style.opacity=0"><span>${cap}</span></div></div>`).join("");
+  `<div class="col-6 col-md-4" data-aos="fade-up" data-aos-delay="${(i % 3) * 100}"><div class="ph" data-i="${i}"><img src="${src}" alt="${cap}" loading="lazy" decoding="async" onerror="this.style.opacity=0"><span>${cap}</span></div></div>`).join("");
 $("#gallery").onclick = e => {
   const p = e.target.closest(".ph"); if (!p) return;
   const [src, cap] = CONFIG.photos[p.dataset.i];
@@ -147,7 +150,7 @@ addEventListener("scroll", () => {
 // Kilau saat disentuh / digeser
 let lastSpark = 0;
 addEventListener("pointermove", e => {
-  if (Date.now() - lastSpark < 70) return; lastSpark = Date.now();
+  if (Date.now() - lastSpark < 120 || R.classList.contains("lite")) return; lastSpark = Date.now();
   const s = document.createElement("i");
   s.className = "spark"; s.textContent = "✦";
   s.style.left = e.clientX + "px"; s.style.top = e.clientY + "px";
@@ -203,17 +206,37 @@ $("#envelope").onclick = () => {
   }, 1700);
 };
 
-/* ===== Desain v4: pemutaran video ===== */
+/* ===== Slideshow foto bergaya film ===== */
 (() => {
-  const box = $("#cinema"), v = box.querySelector("video");
+  const box = $("#cinema"), sl = $("#slides"), cap = $("#cap"), dots = $("#dots"), P = CONFIG.photos;
+  const origins = ["20% 30%", "80% 40%", "50% 80%", "30% 70%"];
+  sl.innerHTML = P.map(([src, c], i) => `<img src="${src}" alt="${c}" loading="lazy" decoding="async" style="--o:${origins[i % 4]}" onerror="this.style.opacity=0">`).join("");
+  dots.innerHTML = P.map(() => "<i></i>").join("");
+  const im = [...sl.children], dt = [...dots.children];
+  let cur = -1, timer = 0, playing = false;
+  function show(n) {
+    if (cur >= 0) {
+      const o = im[cur]; o.classList.remove("on"); o.classList.add("out"); dt[cur].classList.remove("on");
+      setTimeout(() => o.classList.remove("out"), 1500);
+    }
+    cur = (n + P.length) % P.length;
+    im[cur].classList.remove("out"); im[cur].classList.add("on"); dt[cur].classList.add("on");
+    cap.classList.add("sw");
+    setTimeout(() => { cap.textContent = P[cur][1]; cap.classList.remove("sw"); }, 400);
+  }
+  const loop = () => { clearInterval(timer); timer = setInterval(() => { if (playing && !document.hidden && !box.classList.contains("off")) show(cur + 1); }, 5200); };
+  show(0);
   $("#play").onclick = () => {
-    box.classList.add("playing");
+    box.classList.add("playing"); playing = true; loop();
     const r = box.getBoundingClientRect();
     confetti({particleCount: 60, spread: 120, origin: {x: .5, y: (r.top + r.height / 2) / innerHeight}, colors: ["#ffd98a", "#ff9ecb", "#b9a6ff"], ...shp});
-    setTimeout(() => { v.controls = true; v.play().catch(() => {}); }, 1100);
   };
-  v.addEventListener("ended", () => {
-    confetti({particleCount: 120, spread: 100, origin: {y: .6}, colors: ["#ffd98a", "#ff9ecb", "#b9a6ff"], ...shp});
+  box.querySelector(".screen").addEventListener("click", e => {
+    if (!box.classList.contains("playing") || e.target.id === "play") return;
+    const r = box.getBoundingClientRect(), x = (e.clientX - r.left) / r.width;
+    if (x < .3) { show(cur - 1); loop(); }
+    else if (x > .7) { show(cur + 1); loop(); }
+    else { playing = !playing; box.classList.toggle("paused", !playing); }
   });
 })();
 
@@ -233,7 +256,7 @@ $("#envelope").onclick = () => {
 // Kejutan akhir: hujan meteor, kembang api, pesan satu per satu
 $("#surprise").onclick = () => {
   const f = $("#finale");
-  $("#meteors").innerHTML = Array.from({length: 26}, () =>
+  $("#meteors").innerHTML = Array.from({length: 14}, () =>
     `<i class="meteor" style="left:${Math.random() * 130 - 10}%;animation-duration:${(1.4 + Math.random() * 2).toFixed(2)}s;animation-delay:${(Math.random() * 4).toFixed(2)}s;opacity:${(.5 + Math.random() * .5).toFixed(2)}"></i>`).join("");
   $("#finLines").innerHTML = CONFIG.finale.map((t, i) => `<p class="fin-line" style="animation-delay:${1.2 + i * 1.8}s">${t}</p>`).join("");
   const t0 = 1.2 + CONFIG.finale.length * 1.8;
@@ -254,20 +277,22 @@ $("#finClose").onclick = () => $("#finale").classList.remove("show");
 /* ===== Desain v6 ===== */
 const R = document.documentElement;
 // 1+5. Langit berubah saat scroll + parallax
-const hx = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
-const mix = (a, b, t) => "#" + hx(a).map((v, i) => Math.round(v + (hx(b)[i] - v) * t).toString(16).padStart(2, "0")).join("");
-const SKY = [["#5b2a86", "#e0709a"], ["#0b0b2b", "#1b1450"], ["#2b1a5e", "#f2b36e"]];
-let raf = 0;
+const skD = $(".sk-d"), skW = $(".sk-w"), nebula = $("#nebula"), hero = $(".hero"), tiltEls = [nebula, $("#orbs")];
+let raf = 0, lt = 0;
 function onScroll() {
   raf = 0;
   const max = R.scrollHeight - innerHeight, p = max > 0 ? Math.min(1, scrollY / max) : 0;
-  const k = p < .5 ? [0, 1, p * 2] : [1, 2, (p - .5) * 2];
-  $("#skyshift").style.background = `linear-gradient(180deg,${mix(SKY[k[0]][0], SKY[k[1]][0], k[2])},${mix(SKY[k[0]][1], SKY[k[1]][1], k[2])})`;
-  R.style.setProperty("--sy", scrollY);
+  skD.style.opacity = (Math.max(0, 1 - p * 2) * .8).toFixed(2);
+  skW.style.opacity = (Math.max(0, p * 2 - 1) * .8).toFixed(2);
+  nebula.style.setProperty("--sy", scrollY);
+  if (scrollY < innerHeight * 1.5) hero.style.setProperty("--sy", scrollY);
 }
 addEventListener("scroll", () => { raf = raf || requestAnimationFrame(onScroll); }, {passive: true});
 onScroll();
-const tilt = (x, y) => { R.style.setProperty("--tx", x.toFixed(1)); R.style.setProperty("--ty", y.toFixed(1)); };
+const tilt = (x, y) => {
+  const n = performance.now(); if (n - lt < 40) return; lt = n;
+  tiltEls.forEach(e => { e.style.setProperty("--tx", x.toFixed(1)); e.style.setProperty("--ty", y.toFixed(1)); });
+};
 addEventListener("pointermove", e => e.pointerType === "mouse" && tilt((e.clientX / innerWidth - .5) * 24, (e.clientY / innerHeight - .5) * 24), {passive: true});
 addEventListener("deviceorientation", e => e.gamma != null && tilt(Math.max(-1, Math.min(1, e.gamma / 40)) * 12, Math.max(-1, Math.min(1, ((e.beta || 0) - 45) / 40)) * 12), {passive: true});
 addEventListener("pointerdown", () => {
@@ -310,7 +335,7 @@ $("#surprise").addEventListener("click", () => { sfx.boom(); setTimeout(sfx.clap
 // Lentera tambahan di kejutan akhir
 $("#surprise").addEventListener("click", () => {
   let b = $("#finLant");
-  if (!b) { b = document.createElement("div"); b.id = "finLant"; $("#finale").prepend(b); lant(b, 16); }
+  if (!b) { b = document.createElement("div"); b.id = "finLant"; $("#finale").prepend(b); lant(b, 9); }
 });
 
 // 2. Bintang jatuh yang bisa diketuk
@@ -331,3 +356,9 @@ function shooter() {
   setTimeout(shooter, 14000 + Math.random() * 10000);
 }
 setTimeout(shooter, 12000);
+
+/* ===== Optimasi performa ===== */
+if ((navigator.hardwareConcurrency || 8) <= 4 || (navigator.deviceMemory || 8) <= 3) R.classList.add("lite");
+// Jeda animasi berat saat bagian itu tidak terlihat
+const io = new IntersectionObserver(es => es.forEach(e => e.target.classList.toggle("off", !e.isIntersecting)));
+[$(".cinema"), $("#cake")].forEach(el => io.observe(el));
